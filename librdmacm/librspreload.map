@@ -17,7 +17,6 @@
 		read;
 		readv;
 		recv;
-		recvfrom;
 		recvmsg;
 		select;
 		send;

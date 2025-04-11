@@ -93,7 +93,6 @@ IBVERBS_1.1 {
 		ibv_query_srq;
 		ibv_rate_to_mbps;
 		ibv_reg_mr;
-		ibv_register_driver;
 		ibv_rereg_mr;
 		ibv_resize_cq;
 		ibv_resolve_eth_l2_from_gid;
