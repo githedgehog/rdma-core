@@ -170,8 +170,7 @@ class Lib(object):
         """Invoke objcopy on all the objects to rename their symbols"""
         for I in self.objects:
             subprocess.check_call([
-                args.objcopy,
-                "--redefine-syms=%s" % (rename_fn),
+                "cp",
                 os.path.join(self.objdir, I),
                 os.path.join(self.final_objdir, I)
             ])
@@ -234,8 +233,6 @@ parser.add_argument(
     "--version", action="store", help="Package version number", required=True)
 parser.add_argument("--ar", action="store", help="ar tool", required=True)
 parser.add_argument("--nm", action="store", help="nm tool", required=True)
-parser.add_argument(
-    "--objcopy", action="store", help="objcopy tool", required=True)
 args = parser.parse_args()
 
 global_syms = set()
