@@ -801,7 +801,6 @@ recvfrom(int socket, void *buf, size_t len, int flags,
 #if HAVE_SOCKADDR_ARG_AS_UNION
 		 __SOCKADDR_ARG src_addr, socklen_t *addrlen)
 #else
-recvfrom(int socket, void *buf, size_t len, int flags,
 		 struct sockaddr *src_addr, socklen_t *addrlen)
 #endif
 {
