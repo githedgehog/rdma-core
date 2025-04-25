@@ -793,11 +793,7 @@ ssize_t recv(int socket, void *buf, size_t len, int flags)
 		rrecv(fd, buf, len, flags) : real.recv(fd, buf, len, flags);
 }
 
-ssize_t
-#ifdef __clang__
-__attribute__((overloadable))
-#endif
-recvfrom(int socket, void *buf, size_t len, int flags,
+ssize_t recvfrom(int socket, void *buf, size_t len, int flags,
 #if HAVE_SOCKADDR_ARG_AS_UNION
 		 __SOCKADDR_ARG src_addr, socklen_t *addrlen)
 #else
