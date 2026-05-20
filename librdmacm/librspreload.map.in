@@ -11,7 +11,7 @@
 		dup;
 		dup2;
 		fcntl;
-		fcntl64;
+@RDMA_PRELOAD_MAP_FCNTL64@
 		getpeername;
 		getsockname;
 		getsockopt;
@@ -24,7 +24,7 @@
 		select;
 		send;
 		sendfile;
-		sendfile64;
+@RDMA_PRELOAD_MAP_SENDFILE64@
 		sendmsg;
 		sendto;
 		setsockopt;
