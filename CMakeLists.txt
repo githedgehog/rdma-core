@@ -491,6 +491,17 @@ else()
   set(RDMA_PRELOAD_WRAP_LFS64 0)
 endif()
 
+# Entries for librspreload.map.in.  The wrappers in preload.c are gated on RDMA_PRELOAD_WRAP_LFS64,
+# so their version-script entries must be gated to match: newer lld treats a symbol named in a
+# version script but missing from every input object as a hard link error rather than a warning.
+if(RDMA_PRELOAD_WRAP_LFS64)
+  set(RDMA_PRELOAD_MAP_FCNTL64 "\t\tfcntl64;")
+  set(RDMA_PRELOAD_MAP_SENDFILE64 "\t\tsendfile64;")
+else()
+  set(RDMA_PRELOAD_MAP_FCNTL64 "")
+  set(RDMA_PRELOAD_MAP_SENDFILE64 "")
+endif()
+
 # If the first test found fcntl64/sendfile64 with _GNU_SOURCE, the headers
 # must declare them -- no separate check needed.
 if(RDMA_PRELOAD_HAVE_LFS_WRAPPER_SYMS)
