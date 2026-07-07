@@ -17,6 +17,13 @@ cdef extern from 'infiniband/efadv.h':
 
     cpdef enum:
         EFADV_QP_FLAGS_UNSOLICITED_WRITE_RECV
+        EFADV_QP_FLAGS_INLINE_WRITE
+
+    cpdef enum:
+        EFADV_WR_EX_WITH_PROCESSING_HINTS
+
+    cpdef enum:
+        EFADV_WR_PROCESSING_HINT_BURST_PPS_SENSITIVE
 
     cpdef enum:
         EFADV_WC_EX_WITH_SGID
@@ -26,3 +33,6 @@ cdef extern from 'infiniband/efadv.h':
         EFADV_MR_ATTR_VALIDITY_RECV_IC_ID
         EFADV_MR_ATTR_VALIDITY_RDMA_READ_IC_ID
         EFADV_MR_ATTR_VALIDITY_RDMA_RECV_IC_ID
+
+    cpdef enum:
+        EFADV_SQ_DEPTH_ATTR_INLINE_WRITE

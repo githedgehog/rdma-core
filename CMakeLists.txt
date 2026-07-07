@@ -77,14 +77,18 @@ if(POLICY CMP0056)
   cmake_policy(SET CMP0056 NEW)
 endif()
 
+if(POLICY CMP0177)
+  cmake_policy(SET CMP0177 NEW)
+endif()
+
 set(PACKAGE_NAME "RDMA")
 
 # See Documentation/versioning.md
-set(PACKAGE_VERSION "63.0")
+set(PACKAGE_VERSION "64.0")
 # When this is changed the values in these files need changing too:
 #   debian/control
 #   debian/libibverbs1.symbols
-set(IBVERBS_PABI_VERSION "59")
+set(IBVERBS_PABI_VERSION "64")
 set(IBVERBS_PROVIDER_SUFFIX "-rdmav${IBVERBS_PABI_VERSION}.so")
 
 #-------------------------
@@ -449,13 +453,75 @@ if (NOT HAVE_LARGE_FILES)
   add_definitions("-D_FILE_OFFSET_BITS=64")
 endif()
 
+# librspreload: probe libc for fcntl64/sendfile64; CMake sets RDMA_PRELOAD_WRAP_LFS64 when
+# preload should implement the fcntl64/sendfile64 wrapper (see RDMA_PRELOAD_WRAP_LFS64 below).
+set(CMAKE_REQUIRED_QUIET 1)
+set(SAFE_CMAKE_REQUIRED_DEFINITIONS "${CMAKE_REQUIRED_DEFINITIONS}")
+set(CMAKE_REQUIRED_DEFINITIONS "-D_GNU_SOURCE")
+CHECK_C_SOURCE_COMPILES("
+#include <fcntl.h>
+#include <sys/sendfile.h>
+int main(void) {
+  (void)&fcntl64;
+  (void)&sendfile64;
+  return 0;
+}
+" RDMA_PRELOAD_LIBC_HAS_FCNTL64_SENDFILE64)
+CHECK_C_SOURCE_COMPILES("
+#include <fcntl.h>
+int fcntl(int, int, ...) { return 0; }
+int fcntl64(int, int, ...) { return 0; }
+int main(void) {
+  return 0;
+}
+" RDMA_PRELOAD_LIBC_SYMS_LFS_NOT_ALIAS)
+set(CMAKE_REQUIRED_DEFINITIONS "${SAFE_CMAKE_REQUIRED_DEFINITIONS}")
+set(CMAKE_REQUIRED_QUIET 0)
+if(RDMA_PRELOAD_LIBC_HAS_FCNTL64_SENDFILE64 AND RDMA_PRELOAD_LIBC_SYMS_LFS_NOT_ALIAS)
+  set(RDMA_PRELOAD_HAVE_LFS_WRAPPER_SYMS 1)
+else()
+  set(RDMA_PRELOAD_HAVE_LFS_WRAPPER_SYMS 0)
+endif()
+
+# Single gate for preload.c fcntl64/sendfile64 wrappers: need libc symbols and must
+# not compile preload with _FILE_OFFSET_BITS=64 (CMake adds that when HAVE_LARGE_FILES is false).
+if(RDMA_PRELOAD_HAVE_LFS_WRAPPER_SYMS AND HAVE_LARGE_FILES)
+  set(RDMA_PRELOAD_WRAP_LFS64 1)
+else()
+  set(RDMA_PRELOAD_WRAP_LFS64 0)
+endif()
+
+# Entries for librspreload.map.in.  The wrappers in preload.c are gated on RDMA_PRELOAD_WRAP_LFS64,
+# so their version-script entries must be gated to match: newer lld treats a symbol named in a
+# version script but missing from every input object as a hard link error rather than a warning.
+if(RDMA_PRELOAD_WRAP_LFS64)
+  set(RDMA_PRELOAD_MAP_FCNTL64 "\t\tfcntl64;")
+  set(RDMA_PRELOAD_MAP_SENDFILE64 "\t\tsendfile64;")
+else()
+  set(RDMA_PRELOAD_MAP_FCNTL64 "")
+  set(RDMA_PRELOAD_MAP_SENDFILE64 "")
+endif()
+
+# If the first test found fcntl64/sendfile64 with _GNU_SOURCE, the headers
+# must declare them -- no separate check needed.
+if(RDMA_PRELOAD_HAVE_LFS_WRAPPER_SYMS)
+  set(RDMA_PRELOAD_FCNTL64_IN_HEADER 1)
+  set(RDMA_PRELOAD_SENDFILE64_IN_HEADER 1)
+else()
+  set(RDMA_PRELOAD_FCNTL64_IN_HEADER 0)
+  set(RDMA_PRELOAD_SENDFILE64_IN_HEADER 0)
+endif()
+
 # Provide a shim if C11 stdatomic.h is not supported.
 if (NOT HAVE_SPARSE)
   CHECK_INCLUDE_FILE("stdatomic.h" HAVE_STDATOMIC)
   RDMA_DoFixup("${HAVE_STDATOMIC}" "stdatomic.h")
 endif()
 
+CHECK_INCLUDE_FILE("linux/dma-heap.h" HAVE_LINUX_DMA_HEAP_H)
+
 RDMA_Check_SSE(HAVE_TARGET_SSE)
+RDMA_Check_LS64(HAVE_LS64)
 
 # Enable development support features
 # Prune unneeded shared libraries during linking
@@ -554,11 +620,13 @@ include_directories(${SYSTEMD_INCLUDE_DIRS})
 RDMA_DoFixup("${SYSTEMD_FOUND}" "systemd/sd-daemon.h")
 
 # https://www.freedesktop.org/software/systemd/man/latest/sysusers.d.html
-set(SYSUSERS_DIR "")
-if (NOT ${CMAKE_VERSION} VERSION_LESS "3.4")
-  pkg_check_modules(SYSTEMD_PC systemd QUIET)
-  if (SYSTEMD_PC_FOUND)
-    pkg_get_variable(SYSUSERS_DIR systemd sysusersdir)
+set(SYSUSERS_DIR "" CACHE PATH "Location for systemd sysusers.d files")
+if ("${SYSUSERS_DIR}" STREQUAL "")
+  if (NOT ${CMAKE_VERSION} VERSION_LESS "3.4")
+    pkg_check_modules(SYSTEMD_PC systemd QUIET)
+    if (SYSTEMD_PC_FOUND)
+      pkg_get_variable(SYSUSERS_DIR systemd sysusersdir)
+    endif()
   endif()
 endif()
 if ("${SYSUSERS_DIR}" STREQUAL "")
@@ -754,6 +822,7 @@ add_subdirectory(providers/erdma)
 add_subdirectory(providers/hns)
 add_subdirectory(providers/hns/man)
 add_subdirectory(providers/ionic)
+add_subdirectory(providers/ionic/man)
 add_subdirectory(providers/irdma)
 add_subdirectory(providers/mana)
 add_subdirectory(providers/mana/man)
@@ -889,6 +958,9 @@ if (NOT HAVE_GLIBC_UAPI_COMPAT)
 endif()
 if (NOT HAVE_TARGET_SSE)
   message(STATUS " attribute(target(\"sse\")) does NOT work")
+endif()
+if (NOT HAVE_LS64 AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+  message(STATUS " AArch64 ST64B intrinsic NOT supported")
 endif()
 if (NOT DRM_INCLUDE_DIRS)
   message(STATUS " DMABUF NOT supported (disabling some tests)")

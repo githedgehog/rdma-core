@@ -1102,6 +1102,7 @@ static void wr_set_inline_data_list(struct ibv_qp_ex *ibqp, size_t num_buf,
 
 		memcpy(data, buf_list->addr, length);
 
+		tot_length += length;
 		buf_list++;
 		data += length;
 	}
@@ -1138,6 +1139,7 @@ static void wr_set_sge_list(struct ibv_qp_ex *ibqp, size_t num_sge,
 	struct rxe_send_wqe *wqe = addr_from_index(qp->sq.queue,
 						   qp->cur_index - 1);
 	size_t tot_length = 0;
+	size_t i;
 
 	if (qp->err)
 		return;
@@ -1150,8 +1152,8 @@ static void wr_set_sge_list(struct ibv_qp_ex *ibqp, size_t num_sge,
 	wqe->dma.num_sge = num_sge;
 	memcpy(wqe->dma.sge, sg_list, num_sge*sizeof(*sg_list));
 
-	while (num_sge--)
-		tot_length += sg_list->length;
+	for (i = 0; i < num_sge; i++)
+		tot_length += sg_list[i].length;
 
 	wqe->dma.length = tot_length;
 	wqe->dma.resid = tot_length;
@@ -1395,7 +1397,7 @@ static struct ibv_qp *rxe_create_qp_ex(struct ibv_context *context,
 
 	ret = ibv_cmd_create_qp_ex2(context, &qp->vqp, attr,
 				    &cmd, cmd_size,
-				    &resp.ibv_resp, resp_size);
+				    &resp.ibv_resp, resp_size, NULL);
 	if (ret)
 		goto err_free;
 
@@ -1454,7 +1456,7 @@ static int rxe_destroy_qp(struct ibv_qp *ibqp)
 
 /* basic sanity checks for send work request */
 static int validate_send_wr(struct rxe_qp *qp, struct ibv_send_wr *ibwr,
-			    unsigned int length)
+			    uint64_t length)
 {
 	struct rxe_wq *sq = &qp->sq;
 	enum ibv_wr_opcode opcode = ibwr->opcode;
@@ -1593,7 +1595,7 @@ static int post_one_send(struct rxe_qp *qp, struct rxe_wq *sq,
 {
 	int err;
 	struct rxe_send_wqe *wqe;
-	unsigned int length = 0;
+	uint64_t length = 0;
 	int i;
 
 	for (i = 0; i < ibwr->num_sge; i++)

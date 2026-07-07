@@ -27,14 +27,16 @@ target_link_libraries(rdmacm LINK_PRIVATE
 
 # The preload library is a bit special, it needs to be open coded
 # Since it is a LD_PRELOAD it has no soname, and is installed in sub dir
-add_library(rspreload MODULE
+# The version script is generated from librspreload.map.in so the fcntl64/sendfile64
+# entries can be gated on RDMA_PRELOAD_WRAP_LFS64 (see top-level CMakeLists.txt).
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/librspreload.map.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/librspreload.map"
+  @ONLY)
+rdma_rspreload_module(rspreload "${CMAKE_CURRENT_BINARY_DIR}/librspreload.map"
   preload.c
   indexer.c
   )
-# Even though this is a module we still want to use Wl,--no-undefined
-set_target_properties(rspreload PROPERTIES LINK_FLAGS ${CMAKE_SHARED_LINKER_FLAGS})
-set_target_properties(rspreload PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${BUILD_LIB}")
-rdma_set_library_map(rspreload librspreload.map)
 target_link_libraries(rspreload LINK_PRIVATE
   rdmacm
   ${CMAKE_THREAD_LIBS_INIT}

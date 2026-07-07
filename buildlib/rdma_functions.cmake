@@ -120,6 +120,19 @@ function(rdma_library DEST VERSION_SCRIPT SOVERSION VERSION)
   install(TARGETS ${DEST} DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 endfunction()
 
+# rsocket LD_PRELOAD module. Requires RDMA_PRELOAD_* variables from top-level
+# CMakeLists.txt (RDMA_PRELOAD_WRAP_LFS64 and fcntl64/sendfile64 header probe).
+function(rdma_rspreload_module DEST VERSION_SCRIPT)
+  add_library(${DEST} MODULE ${ARGN})
+  target_compile_definitions(${DEST} PRIVATE
+    RDMA_PRELOAD_WRAP_LFS64=${RDMA_PRELOAD_WRAP_LFS64}
+    RDMA_PRELOAD_FCNTL64_IN_HEADER=${RDMA_PRELOAD_FCNTL64_IN_HEADER}
+    RDMA_PRELOAD_SENDFILE64_IN_HEADER=${RDMA_PRELOAD_SENDFILE64_IN_HEADER})
+  set_target_properties(${DEST} PROPERTIES LINK_FLAGS ${CMAKE_SHARED_LINKER_FLAGS})
+  set_target_properties(${DEST} PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${BUILD_LIB}")
+  rdma_set_library_map(${DEST} ${VERSION_SCRIPT})
+endfunction()
+
 # Create a special provider with exported symbols in it The shared provider
 # exists as a normal system library with the normal shared library SONAME and
 # other convections. The system library is symlinked into the
@@ -286,7 +299,7 @@ function(rdma_finalize_libs)
     OUTPUT ${OUTPUTS}
     COMMAND "${PYTHON_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/buildlib/sanitize_static_lib.py"
              --version ${PACKAGE_VERSION}
-             --ar "${CMAKE_AR}" --nm "${CMAKE_NM}" --objcopy "${CMAKE_OBJCOPY}" ${ARGS}
+             --ar "${CMAKE_AR}" --nm "${CMAKE_NM}" ${ARGS}
     DEPENDS ${DEPENDS} "${PROJECT_SOURCE_DIR}/buildlib/sanitize_static_lib.py"
     COMMENT "Building distributable static libraries"
     VERBATIM)
@@ -298,7 +311,6 @@ function(rdma_pkg_config PC_LIB_NAME PC_REQUIRES_PRIVATE PC_LIB_PRIVATE)
   set(PC_LIB_NAME "${PC_LIB_NAME}")
   set(PC_LIB_PRIVATE "${PC_LIB_PRIVATE}")
   set(PC_REQUIRES_PRIVATE "${PC_REQUIRES_PRIVATE}")
-  get_target_property(PC_VERSION ${PC_LIB_NAME} VERSION)
 
   # With IN_PLACE=1 the install step is not run, so generate the file in the build dir
   if (IN_PLACE)

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 OR BSD-2-Clause */
 /*
- * Copyright 2019-2025 Amazon.com, Inc. or its affiliates. All rights reserved.
+ * Copyright 2019-2026 Amazon.com, Inc. or its affiliates. All rights reserved.
  */
 
 #ifndef __EFADV_H__
@@ -32,7 +32,7 @@ struct efadv_device_attr {
 	uint16_t max_sq_sge;
 	uint16_t max_rq_sge;
 	uint16_t inline_buf_size;
-	uint8_t reserved[2];
+	uint16_t inline_buf_size_ex;
 	uint32_t device_caps;
 	uint32_t max_rdma_size;
 };
@@ -46,6 +46,29 @@ struct efadv_ah_attr {
 	uint16_t ahn;
 	uint8_t reserved[6];
 };
+
+enum {
+	EFADV_SQ_DEPTH_ATTR_INLINE_WRITE = 1 << 0,
+};
+
+struct efadv_sq_depth_attr {
+	uint64_t comp_mask;
+	uint32_t flags;
+	uint32_t max_send_sge;
+	uint32_t max_rdma_sge;
+	uint32_t max_inline_data;
+};
+
+int efadv_get_max_sq_depth(struct ibv_context *ibvctx, struct efadv_sq_depth_attr *attr,
+			   uint32_t inlen);
+
+struct efadv_rq_depth_attr {
+	uint64_t comp_mask;
+	uint32_t max_recv_sge;
+};
+
+int efadv_get_max_rq_depth(struct ibv_context *ibvctx, struct efadv_rq_depth_attr *attr,
+			   uint32_t inlen);
 
 int efadv_query_ah(struct ibv_ah *ibvah, struct efadv_ah_attr *attr,
 		   uint32_t inlen);
@@ -61,6 +84,11 @@ struct ibv_qp *efadv_create_driver_qp(struct ibv_pd *ibvpd,
 
 enum {
 	EFADV_QP_FLAGS_UNSOLICITED_WRITE_RECV = 1 << 0,
+	EFADV_QP_FLAGS_INLINE_WRITE = 1 << 1,
+};
+
+enum {
+	EFADV_WR_EX_WITH_PROCESSING_HINTS = 1 << 0,
 };
 
 struct efadv_qp_init_attr {
@@ -69,6 +97,7 @@ struct efadv_qp_init_attr {
 	uint16_t flags;
 	uint8_t sl;
 	uint8_t reserved;
+	uint64_t wr_flags;
 };
 
 struct ibv_qp *efadv_create_qp_ex(struct ibv_context *ibvctx,
@@ -89,11 +118,21 @@ struct efadv_wq_attr {
 int efadv_query_qp_wqs(struct ibv_qp *ibvqp, struct efadv_wq_attr *sq_attr,
 		       struct efadv_wq_attr *rq_attr, uint32_t inlen);
 
-struct efadv_cq {
-	uint64_t comp_mask;
-	int (*wc_read_sgid)(struct efadv_cq *efadv_cq, union ibv_gid *sgid);
-	bool (*wc_is_unsolicited)(struct efadv_cq *efadv_cq);
+enum efadv_wr_processing_hint {
+	EFADV_WR_PROCESSING_HINT_BURST_PPS_SENSITIVE = 1 << 0,
 };
+
+struct efadv_qp {
+	uint64_t comp_mask;
+	void (*wr_set_processing_hints)(struct efadv_qp *efadv_qp, uint32_t hints);
+};
+
+struct efadv_qp *efadv_qp_from_ibv_qp_ex(struct ibv_qp_ex *ibvqpx);
+
+static inline void efadv_wr_set_processing_hints(struct efadv_qp *efadv_qp, uint32_t hints)
+{
+	efadv_qp->wr_set_processing_hints(efadv_qp, hints);
+}
 
 enum {
 	EFADV_WC_EX_WITH_SGID = 1 << 0,
@@ -131,6 +170,12 @@ struct efadv_cq_attr {
 };
 
 int efadv_query_cq(struct ibv_cq *ibvcq, struct efadv_cq_attr *attr, uint32_t inlen);
+
+struct efadv_cq {
+	uint64_t comp_mask;
+	int (*wc_read_sgid)(struct efadv_cq *efadv_cq, union ibv_gid *sgid);
+	bool (*wc_is_unsolicited)(struct efadv_cq *efadv_cq);
+};
 
 struct efadv_cq *efadv_cq_from_ibv_cq_ex(struct ibv_cq_ex *ibvcqx);
 
